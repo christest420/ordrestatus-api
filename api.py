@@ -6,36 +6,38 @@ import os
 app = Flask(__name__)
 CORS(app)
 
-# Last inn CSV-filen én gang ved oppstart
-CSV_FILE = "ordreinfobot.csv"
-if not os.path.exists(CSV_FILE):
-    raise FileNotFoundError(f"{CSV_FILE} finnes ikke i roten av prosjektet.")
+CSV_PATH = os.path.join(os.path.dirname(__file__), 'ordreinfobot.csv')
 
-df = pd.read_csv(CSV_FILE, sep=";")
-
-@app.route("/", methods=["GET"])
-def index():
-    return "✅ API kjører!"
-
-@app.route("/ordre", methods=["GET"])
-def ordreinfo():
+@app.route("/ordre")
+def ordre():
     kunderef = request.args.get("kunderef")
     if not kunderef:
-        return jsonify({"status": "error", "message": "Parametret 'kunderef' mangler."}), 400
+        return jsonify({"status": "error", "message": "kunderef er påkrevd"}), 400
 
-    filtrert = df[df["kunderef"].astype(str).str.contains(kunderef, case=False, na=False)]
+    try:
+        df = pd.read_csv(CSV_PATH, header=None)
+        df.columns = ["ordre_id", "kunderef", "status", "produkt", "mottatt_dato", "sendes_dato"]
 
-    if filtrert.empty:
-        return jsonify({"status": "not_found", "message": f"Ingen ordre funnet for '{kunderef}'."})
+        # Søk etter eksakt ord i kunderef-feltet
+        match = df[df["kunderef"].apply(lambda x: kunderef in str(x).split())]
 
-    # Returner strukturert data
-    siste = filtrert.sort_values("dato", ascending=False).iloc[0]
-    hendelser = filtrert.sort_values("dato", ascending=False)[["dato", "checkpoint"]].head(5)
+        if match.empty:
+            return jsonify({"status": "not found", "kunderef": kunderef}), 404
 
-    return jsonify({
-        "status": "ok",
-        "kunderef": kunderef,
-        "sisteHendelser": hendelser.to_dict(orient="records"),
-        "bekreftetSendingsdato": siste.get("bekreftet_sendingsdato", "")
-    })
+        row = match.iloc[0]  # Tar første treff
 
+        return jsonify({
+            "status": "ok",
+            "kunderef": row["kunderef"],
+            "ordre_id": row["ordre_id"],
+            "produkt": row["produkt"],
+            "statusbeskrivelse": row["status"],
+            "mottattDato": row["mottatt_dato"],
+            "sendesDato": row["sendes_dato"]
+        })
+
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+if __name__ == "__main__":
+    app.run()
