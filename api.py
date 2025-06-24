@@ -9,7 +9,7 @@ import os
 app = Flask(__name__)
 CORS(app)
 
-# Forsøk å sette norsk datoformat
+# Norsk datoformat
 try:
     locale.setlocale(locale.LC_TIME, 'Norwegian_Norway.1252')
 except:
@@ -41,7 +41,7 @@ def formater_dato(dato_str):
 
 def finn_rader_med_referanse(df, referanse):
     treff = []
-    for index, row in df.iterrows():
+    for _, row in df.iterrows():
         kunderef = str(row['Kunderef']).lower().split()
         if referanse.lower() in kunderef:
             treff.append(row)
