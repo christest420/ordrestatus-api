@@ -4,10 +4,12 @@ import re
 from flask_cors import CORS
 from datetime import datetime
 import locale
+import os
 
 app = Flask(__name__)
 CORS(app)
 
+# Forsøk å sette norsk datoformat
 try:
     locale.setlocale(locale.LC_TIME, 'Norwegian_Norway.1252')
 except:
@@ -16,14 +18,20 @@ except:
     except:
         print("⚠️ Kunne ikke sette norsk datoformat.")
 
-df = pd.read_csv(
-    "ordreinfobot.csv",
-    sep=",",
-    dtype=str,
-    header=None,
-    names=["Ordrenr", "Kunderef", "Checkpoint", "Ordremetode", "Bekreftet leveringsdato", "Levert dato"]
-)
-df.fillna("", inplace=True)
+def load_dataframe():
+    try:
+        df = pd.read_csv(
+            "ordreinfobot.csv",
+            sep=",",
+            dtype=str,
+            header=None,
+            names=["Ordrenr", "Kunderef", "Checkpoint", "Ordremetode", "Bekreftet leveringsdato", "Levert dato"]
+        )
+        df.fillna("", inplace=True)
+        return df
+    except Exception as e:
+        print(f"❌ Klarte ikke å laste CSV: {e}")
+        return None
 
 def formater_dato(dato_str):
     if dato_str and re.match(r"\d{4}-\d{2}-\d{2}", dato_str):
@@ -31,7 +39,7 @@ def formater_dato(dato_str):
         return dato.strftime("%d. %B %Y").capitalize()
     return dato_str
 
-def finn_rader_med_referanse(referanse):
+def finn_rader_med_referanse(df, referanse):
     treff = []
     for index, row in df.iterrows():
         kunderef = str(row['Kunderef']).lower().split()
@@ -52,7 +60,11 @@ def hent_siste_hendelse(checkpoint_full):
 @app.route('/ordrestatus', methods=['GET'])
 def ordrestatus():
     referansenummer = request.args.get('ordrenummer', '').lower()
-    treff = finn_rader_med_referanse(referansenummer)
+    df = load_dataframe()
+    if df is None:
+        return jsonify({"status": "feil", "melding": "CSV-data ikke tilgjengelig på server."}), 500
+
+    treff = finn_rader_med_referanse(df, referansenummer)
 
     if len(treff) == 1:
         rad = treff[0]
