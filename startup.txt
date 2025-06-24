@@ -1,1 +1,0 @@
-oryx create-script -appPath . -output startup.sh && bash startup.sh
