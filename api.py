@@ -6,38 +6,48 @@ import os
 app = Flask(__name__)
 CORS(app)
 
-CSV_PATH = os.path.join(os.path.dirname(__file__), 'ordreinfobot.csv')
+CSV_FIL = "ordreinfobot.csv"
 
-@app.route("/ordre")
-def ordre():
-    kunderef = request.args.get("kunderef")
+@app.route("/")
+def index():
+    return "✅ API kjører!"
+
+@app.route("/ordre", methods=["GET"])
+def ordreinfo():
+    kunderef = request.args.get("kunderef", "").strip()
     if not kunderef:
-        return jsonify({"status": "error", "message": "kunderef er påkrevd"}), 400
+        return jsonify({"status": "feil", "melding": "kunderef mangler"}), 400
+
+    if not os.path.exists(CSV_FIL):
+        return jsonify({"status": "feil", "melding": f"Filen '{CSV_FIL}' finnes ikke."}), 500
 
     try:
-        df = pd.read_csv(CSV_PATH, header=None)
-        df.columns = ["ordre_id", "kunderef", "status", "produkt", "mottatt_dato", "sendes_dato"]
+        df = pd.read_csv(CSV_FIL, delimiter=",", header=None)
+    except Exception as e:
+        return jsonify({"status": "feil", "melding": f"Kunne ikke lese CSV: {str(e)}"}), 500
 
-        # Søk etter eksakt ord i kunderef-feltet
-        match = df[df["kunderef"].apply(lambda x: kunderef in str(x).split())]
+    df.columns = ["ordre_id", "kunderef", "status", "kunde", "mottatt", "bekreftet"]
 
-        if match.empty:
-            return jsonify({"status": "not found", "kunderef": kunderef}), 404
+    # Sjekk om eksakt match finnes i noen del av kunderef-kolonnen
+    def match_kunderef(kolonneverdi):
+        deler = kolonneverdi.split()
+        return kunderef in deler
 
-        row = match.iloc[0]  # Tar første treff
+    treff = df[df["kunderef"].apply(match_kunderef)]
 
+    if treff.empty:
         return jsonify({
-            "status": "ok",
-            "kunderef": row["kunderef"],
-            "ordre_id": row["ordre_id"],
-            "produkt": row["produkt"],
-            "statusbeskrivelse": row["status"],
-            "mottattDato": row["mottatt_dato"],
-            "sendesDato": row["sendes_dato"]
+            "status": "ikke funnet",
+            "sisteHendelser": [],
+            "bekreftetSendingsdato": None
         })
 
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
+    rad = treff.iloc[0]
+    return jsonify({
+        "status": "funnet",
+        "sisteHendelser": rad["status"].split("-"),
+        "bekreftetSendingsdato": rad["bekreftet"]
+    })
 
 if __name__ == "__main__":
     app.run()
