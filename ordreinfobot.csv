@@ -1,1 +1,2 @@
-12345,SO123456 IF7890,Mottatt-Kappet-Pakket,FP Laminat,2024-05-01,2024-05-03
+ordrenummer;status;bekreftetSendingsdato;sisteHendelser
+SO123456;Mottatt;2024-05-03;Mottatt-Kappet-Pakket
