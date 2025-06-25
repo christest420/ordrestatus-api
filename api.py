@@ -1,53 +1,45 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request
 from flask_cors import CORS
 import pandas as pd
-import os
 
 app = Flask(__name__)
 CORS(app)
 
-CSV_FIL = "ordreinfobot.csv"
+# Last inn CSV ved oppstart
+CSV_FILE = "ordreinfobot.csv"
+df = pd.read_csv(CSV_FILE, header=None, dtype=str)
+df.fillna("", inplace=True)
 
-@app.route("/")
-def index():
+@app.route("/", methods=["GET"])
+def root():
     return "✅ API kjører!"
 
-@app.route("/ordre", methods=["GET"])
-def ordreinfo():
-    kunderef = request.args.get("kunderef", "").strip()
-    if not kunderef:
-        return jsonify({"status": "feil", "melding": "kunderef mangler"}), 400
+@app.route("/api/messages", methods=["POST"])
+def messages():
+    data = request.get_json()
 
-    if not os.path.exists(CSV_FIL):
-        return jsonify({"status": "feil", "melding": f"Filen '{CSV_FIL}' finnes ikke."}), 500
-
+    # Hent meldingen brukeren skrev
+    user_input = ""
     try:
-        df = pd.read_csv(CSV_FIL, delimiter=",", header=None)
-    except Exception as e:
-        return jsonify({"status": "feil", "melding": f"Kunne ikke lese CSV: {str(e)}"}), 500
+        user_input = data["text"].strip()
+    except Exception:
+        return {"type": "message", "text": "Beklager, jeg forstod ikke meldingen."}
 
-    df.columns = ["ordre_id", "kunderef", "status", "kunde", "mottatt", "bekreftet"]
+    # Søk etter eksakt match i kolonne 1 eller 2
+    match = df[(df[1] == user_input) | (df[1].str.contains(rf"\b{user_input}\b", na=False))]
 
-    # Sjekk om eksakt match finnes i noen del av kunderef-kolonnen
-    def match_kunderef(kolonneverdi):
-        deler = kolonneverdi.split()
-        return kunderef in deler
+    if match.empty:
+        return {"type": "message", "text": f"Ingen ordre funnet for: {user_input}"}
+    
+    row = match.iloc[0]
+    svar = (
+        f"📦 Ordrestatus for {user_input}:\n\n"
+        f"- Internreferanse: {row[0]}\n"
+        f"- Kundeordre: {row[1]}\n"
+        f"- Status: {row[2]}\n"
+        f"- Produkt: {row[3]}\n"
+        f"- Mottatt: {row[4]}\n"
+        f"- Forventet sendt: {row[5]}"
+    )
 
-    treff = df[df["kunderef"].apply(match_kunderef)]
-
-    if treff.empty:
-        return jsonify({
-            "status": "ikke funnet",
-            "sisteHendelser": [],
-            "bekreftetSendingsdato": None
-        })
-
-    rad = treff.iloc[0]
-    return jsonify({
-        "status": "funnet",
-        "sisteHendelser": rad["status"].split("-"),
-        "bekreftetSendingsdato": rad["bekreftet"]
-    })
-
-if __name__ == "__main__":
-    app.run()
+    return {"type": "message", "text": svar}
