@@ -1,56 +1,84 @@
-import os
+import asyncio
 import pandas as pd
-from flask import Flask, request, jsonify
+from flask import Flask, request, Response
 from flask_cors import CORS
-from botbuilder.core import BotFrameworkAdapter, BotFrameworkAdapterSettings, TurnContext
-from botbuilder.schema import Activity, ActivityTypes, ConversationReference
+from botbuilder.core import (
+    BotFrameworkAdapter,
+    BotFrameworkAdapterSettings,
+    TurnContext,
+    MessageFactory,
+)
+from botbuilder.schema import Activity
+import os
 
+# Konfigurasjon
+APP_ID = os.environ.get("MicrosoftAppId", "")
+APP_PASSWORD = os.environ.get("MicrosoftAppPassword", "")
+
+# Bot og adapter
+adapter_settings = BotFrameworkAdapterSettings(APP_ID, APP_PASSWORD)
+adapter = BotFrameworkAdapter(adapter_settings)
+
+# Flask-app
 app = Flask(__name__)
 CORS(app)
 
-# Bot Framework adapter settings
-adapter_settings = BotFrameworkAdapterSettings("", "")
-adapter = BotFrameworkAdapter(adapter_settings)
+# Bot-logikk
+class StatusBot:
+    async def on_turn(self, turn_context: TurnContext):
+        if turn_context.activity.type == "message":
+            user_input = turn_context.activity.text.strip().upper()
+            response = self.svar_for_ordrenummer(user_input)
+            await turn_context.send_activity(MessageFactory.text(response))
 
-# Lagre conversation references
-CONVERSATION_REFERENCES = {}
-
-@app.route("/api/messages", methods=["POST"])
-def messages():
-    activity = Activity().deserialize(request.json)
-    auth_header = request.headers.get("Authorization", "")
-
-    async def aux_func(turn_context: TurnContext):
-        user_input = turn_context.activity.text.strip()
-
-        # Last inn CSV med semikolon som separator
+    def svar_for_ordrenummer(self, ordrenummer):
         try:
             df = pd.read_csv("ordreinfobot.csv", sep=";")
-        except Exception as e:
-            await turn_context.send_activity(f"Feil ved lesing av ordreinfobot.csv: {e}")
-            return
+            if "ordrenummer" not in df.columns:
+                return "⚠️ CSV-fil mangler kolonnen 'ordrenummer'."
 
-        # Sjekk om ordrenummer finnes
-        rad = df[df["ordrenummer"].str.upper() == user_input.upper()]
-        if not rad.empty:
-            r = rad.iloc[0]
-            response = (
-                f"📦 Ordre: {r['ordrenummer']}\n"
-                f"✅ Status: {r['status']}\n"
-                f"📅 Bekreftet sendingsdato: {r['bekreftetSendingsdato']}\n"
-                f"📋 Siste hendelser: {r['sisteHendelser']}"
+            rad = df[df["ordrenummer"].str.upper() == ordrenummer]
+            if rad.empty:
+                return f"Fant ingen ordre med nummer: {ordrenummer}"
+
+            status = rad.iloc[0].get("status", "Ukjent")
+            bekreftet = rad.iloc[0].get("bekreftetSendingsdato", "Ukjent")
+            siste = rad.iloc[0].get("sisteHendelser", "Ukjent")
+
+            return (
+                f"📦 Ordre: {ordrenummer}\n"
+                f"📝 Status: {status}\n"
+                f"📅 Sendes: {bekreftet}\n"
+                f"🔄 Hendelser: {siste}"
             )
-        else:
-            response = f"Fant ingen ordre som matcher '{user_input}'."
+        except Exception as e:
+            return f"🚨 Feil ved behandling av CSV: {e}"
 
-        await turn_context.send_activity(response)
+# Opprett bot-instans
+bot = StatusBot()
 
-    task = adapter.process_activity(activity, auth_header, aux_func)
-    return "", 202
-
+# Helse-sjekk
 @app.route("/", methods=["GET"])
 def index():
-    return jsonify({"status": "Bot kjører OK", "bruk": "Send POST til /api/messages"})
+    return "Bot kjører OK"
 
-if __name__ == "__main__":
-    app.run(debug=True)
+# Meldings-endepunkt
+@app.route("/api/messages", methods=["POST"])
+def messages():
+    if "application/json" not in request.headers.get("Content-Type", ""):
+        return Response(status=415)
+
+    body = request.json
+    activity = Activity().deserialize(body)
+
+    async def call_bot():
+        await adapter.process_activity(activity, "", bot.on_turn)
+
+    try:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        loop.run_until_complete(call_bot())
+        return Response(status=202)
+    except Exception as e:
+        print(f"Exception i /api/messages: {e}")
+        return Response(status=500)
