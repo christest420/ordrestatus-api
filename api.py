@@ -1,71 +1,63 @@
-import os
-import pandas as pd
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from botbuilder.core import BotFrameworkAdapter, BotFrameworkAdapterSettings, TurnContext
 from botbuilder.schema import Activity
-from dotenv import load_dotenv
-
-# Last inn .env hvis det finnes
-load_dotenv()
+import asyncio
+import os
 
 app = Flask(__name__)
 CORS(app)
 
-# === Bot Framework-adapter ===
-SETTINGS = BotFrameworkAdapterSettings("", "")
-ADAPTER = BotFrameworkAdapter(SETTINGS)
+# Hardkodet testdata (erstatter CSV)
+ordredata = {
+    "SO123456": {
+        "ordrenummer": "SO123456",
+        "status": "Mottatt",
+        "bekreftetSendingsdato": "2024-05-03",
+        "sisteHendelser": "Mottatt-Kappet-Pakket"
+    }
+}
 
+# Bot Framework adapter settings
+adapter_settings = BotFrameworkAdapterSettings("", "")
+adapter = BotFrameworkAdapter(adapter_settings)
 
-class OrderStatusBot:
-    async def on_turn(self, turn_context: TurnContext):
-        user_input = turn_context.activity.text.strip().upper()
-        if not user_input:
-            await turn_context.send_activity("⚠️ Jeg forstod ikke meldingen. Prøv igjen.")
-            return
-
-        # Finn CSV-filen i samme mappe som api.py
-        csv_path = os.path.join(os.path.dirname(__file__), "ordreinfobot.csv")
-
-        try:
-            df = pd.read_csv(csv_path, sep=";")
-        except Exception as e:
-            await turn_context.send_activity(f"🚨 Klarte ikke å laste ordredata: {e}")
-            return
-
-        matching_row = df[df["ordrenummer"].str.upper() == user_input]
-        if not matching_row.empty:
-            row = matching_row.iloc[0]
-            status = row["status"]
-            dato = row["bekreftetSendingsdato"]
-            hendelser = row["sisteHendelser"]
-            response = f"📦 **Status for {user_input}**\n\n- Status: {status}\n- Bekreftet sendingsdato: {dato}\n- Siste hendelser: {hendelser}"
-        else:
-            response = f"❌ Fant ingen ordre som matcher '{user_input}'."
-
-        await turn_context.send_activity(response)
-
-
-BOT = OrderStatusBot()
-
+# Aktiver logging ved behov
+@app.route("/", methods=["GET"])
+def home():
+    return "Bot API kjører OK!"
 
 @app.route("/api/messages", methods=["POST"])
-def messages():
+async def messages():
     if "application/json" in request.headers["Content-Type"]:
         body = request.json
     else:
-        return jsonify({"error": "Content-Type must be application/json"}), 400
+        return jsonify({"error": "Content-Type må være application/json"}), 400
 
     activity = Activity().deserialize(body)
 
-    async def aux_func(turn_context):
-        await BOT.on_turn(turn_context)
+    async def turn_call(turn_context: TurnContext):
+        brukerinput = turn_context.activity.text.strip().upper()
+        respons = generer_svar(brukerinput)
+        await turn_context.send_activity(respons)
 
-    task = ADAPTER.process_activity(activity, "", aux_func)
-    return jsonify({"status": "ok"})
+    try:
+        auth_header = request.headers.get("Authorization", "")
+        await adapter.process_activity(activity, auth_header, turn_call)
+        return "", 202
+    except Exception as e:
+        print(f"Feil i behandling av melding: {e}")
+        return jsonify({"error": str(e)}), 500
 
-
-@app.route("/", methods=["GET"])
-def root():
-    return "✅ Flask API for ordrestatus kjører."
+def generer_svar(ordrenummer):
+    if ordrenummer in ordredata:
+        rad = ordredata[ordrenummer]
+        return (
+            f"📦 **Ordre {rad['ordrenummer']}**\n"
+            f"✅ Status: {rad['status']}\n"
+            f"📅 Bekreftet sendingsdato: {rad['bekreftetSendingsdato']}\n"
+            f"🛠️ Hendelser: {rad['sisteHendelser']}"
+        )
+    else:
+        return f"❌ Fant ingen ordre med nummer {ordrenummer}."
 
