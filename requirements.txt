@@ -4,3 +4,4 @@ pandas
 gunicorn
 botbuilder-core==4.14.1
 botbuilder-schema==4.14.1
+aiohttp
