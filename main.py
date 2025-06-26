@@ -1,11 +1,6 @@
 import os
 from aiohttp import web
-from botbuilder.core import (
-    BotFrameworkAdapterSettings,
-    TurnContext,
-    ConversationState,
-    MemoryStorage,
-)
+from botbuilder.core import (Configuration, BotFrameworkAdapterSettings, TurnContext, ConversationState, MemoryStorage,)
 from botbuilder.core import ConfigurationBotFrameworkAuthentication
 from botbuilder.schema import Activity
 from botbuilder.core.integration.aiohttp import BotFrameworkHttpClient, aiohttp_error_middleware
@@ -15,9 +10,10 @@ from botbuilder.integration.aiohttp.skills import SkillHandler
 APP_ID = os.environ.get("MicrosoftAppId", "")
 APP_PASSWORD = os.environ.get("MicrosoftAppPassword", "")
 
-auth_config = ConfigurationBotFrameworkAuthentication(
-    {"MicrosoftAppId": APP_ID, "MicrosoftAppPassword": APP_PASSWORD}
-)
+settings = Configuration()
+settings["MicrosoftAppId"] = APP_ID
+settings["MicrosoftAppPassword"] = APP_PASSWORD
+auth_config = ConfigurationBotFrameworkAuthentication(settings)
 
 # Dummy Echo bot for testing
 class EchoBot:
