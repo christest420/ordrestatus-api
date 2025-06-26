@@ -13,8 +13,7 @@ APP_PASSWORD = os.environ.get("MicrosoftAppPassword", "")
 
 # Opprett autentiseringsobjekt med navngitte argumenter
 auth_config = ConfigurationBotFrameworkAuthentication(
-    app_id=APP_ID,
-    app_password=APP_PASSWORD
+    {"MicrosoftAppId": APP_ID, "MicrosoftAppPassword": APP_PASSWORD}
 )
 
 # Opprett adapter
