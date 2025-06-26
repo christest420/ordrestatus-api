@@ -1,8 +1,6 @@
 aiohttp
-uvicorn
+botbuilder-core==4.17.0
+botbuilder-schema==4.17.0
+botframework-connector==4.17.0
+botframework-streaming==4.17.0
 gunicorn
-botbuilder-core>=4.15.0
-botbuilder-schema>=4.15.0
-botframework-connector>=4.15.0
-botframework-streaming>=4.15.0
-botbuilder-integration-aiohttp>=4.15.0
