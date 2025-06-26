@@ -1,7 +1,2 @@
-aiohttp
-botbuilder-core==4.17.0
-botbuilder-schema==4.17.0
-botframework-connector==4.17.0
-botframework-streaming==4.17.0
+flask
 gunicorn
-botbuilder-integration-aiohttp==4.17.0
