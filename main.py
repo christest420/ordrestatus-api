@@ -1,12 +1,12 @@
 # main.py
-import os
 from aiohttp import web
-from botbuilder.core import (
-    CloudAdapter,
-    ConfigurationBotFrameworkAuthentication,
-    TurnContext
-)
+import os
 from botbuilder.schema import Activity
+from botbuilder.core import TurnContext
+from botbuilder.core.integration import (
+    CloudAdapter,
+    ConfigurationBotFrameworkAuthentication
+)
 
 # Auth config
 APP_ID = os.environ.get("MicrosoftAppId", "")
