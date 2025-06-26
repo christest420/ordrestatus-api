@@ -1,7 +1,6 @@
-# api.py
+from flask import Flask, request, Response
 import os
 import asyncio
-from flask import Flask, request, Response
 from botbuilder.core import (
     TurnContext,
     CloudAdapter,
@@ -11,20 +10,16 @@ from botbuilder.schema import Activity
 
 app = Flask(__name__)
 
-# Hent credentials fra miljøvariabler
 APP_ID = os.environ.get("MicrosoftAppId", "")
 APP_PASSWORD = os.environ.get("MicrosoftAppPassword", "")
 
-# Konfigurer autentisering
 auth_config = ConfigurationBotFrameworkAuthentication(
     app_id=APP_ID,
     app_password=APP_PASSWORD
 )
 
-# Opprett CloudAdapter
 adapter = CloudAdapter(auth_config)
 
-# Enkel bot-logikk: svarer med samme tekst
 async def handle_message(context: TurnContext):
     user_text = context.activity.text.strip()
     await context.send_activity(f"Du skrev: '{user_text}' (svar fra botten)")
@@ -53,3 +48,6 @@ def messages():
     except Exception as e:
         print(f"Feil i CloudAdapter: {e}")
         return Response(status=500)
+
+# 👇 Dette må med for gunicorn:
+app = app
