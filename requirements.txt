@@ -1,2 +1,3 @@
 flask
-gunicorn
+botbuilder-core==4.17.0
+botbuilder-schema==4.17.0
