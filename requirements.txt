@@ -1,7 +1,6 @@
-flask
-asgiref
-python-dotenv
+aiohttp
 gunicorn
 botbuilder-core>=4.15.0
 botbuilder-schema>=4.15.0
-aiohttp
+botframework-connector>=4.15.0
+botframework-streaming>=4.15.0
