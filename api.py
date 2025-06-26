@@ -1,34 +1,25 @@
-import os
-import asyncio
-from flask import Flask, request, Response
+from flask import Flask, request, jsonify
+from botbuilder.core import BotFrameworkAdapter, BotFrameworkAdapterSettings, TurnContext
 from botbuilder.schema import Activity
-from botbuilder.core import (
-    BotFrameworkAdapter,
-    BotFrameworkAdapterSettings,
-    TurnContext
-)
+import asyncio
+import os
 
-# Konfigurasjon fra miljøvariabler
+app = Flask(__name__)
+
 APP_ID = os.environ.get("MicrosoftAppId", "")
 APP_PASSWORD = os.environ.get("MicrosoftAppPassword", "")
-
-# Oppsett av adapter og bot
 adapter_settings = BotFrameworkAdapterSettings(APP_ID, APP_PASSWORD)
 adapter = BotFrameworkAdapter(adapter_settings)
 
-# EchoBot – svarer med samme tekst som du sender
-class EchoBot:
-    async def on_turn(self, turn_context: TurnContext):
-        if turn_context.activity.type == "message":
-            await turn_context.send_activity(f"Echo: {turn_context.activity.text}")
-
-bot = EchoBot()
-
-# Flask-app
-app = Flask(__name__)
+# EchoBot-logikk
+async def echo_bot_logic(turn_context: TurnContext):
+    if turn_context.activity.type == "message":
+        await turn_context.send_activity(f"Echo: {turn_context.activity.text}")
+    else:
+        await turn_context.send_activity(f"[{turn_context.activity.type} event detected]")
 
 @app.route("/", methods=["GET"])
-def index():
+def health_check():
     return "Bot API kjører OK!"
 
 @app.route("/api/messages", methods=["POST"])
@@ -36,23 +27,17 @@ def messages():
     if "application/json" in request.headers["Content-Type"]:
         body = request.json
     else:
-        return Response(status=415)
+        return jsonify({"error": "Unsupported Media Type"}), 415
 
     activity = Activity().deserialize(body)
     auth_header = request.headers.get("Authorization", "")
 
-    async def call_bot():
-        await adapter.process_activity(activity, auth_header, bot.on_turn)
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
 
-    try:
-        loop = asyncio.get_event_loop()
-    except RuntimeError:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
+    task = loop.create_task(
+        adapter.process_activity(activity, auth_header, echo_bot_logic)
+    )
+    loop.run_until_complete(task)
 
-    loop.create_task(call_bot())
-    return Response(status=202)
-
-# Kjør kun lokalt, ikke i produksjon
-if __name__ == "__main__":
-    app.run(debug=True, port=8000)
+    return "", 202
