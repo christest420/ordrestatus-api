@@ -1,3 +1,4 @@
 python -m pip install --upgrade pip
+python -m pip install botbuilder-integration-aiohttp
 python -m pip install -r requirements.txt
 gunicorn main:app -k uvicorn.workers.UvicornWorker --bind=0.0.0.0:8000
